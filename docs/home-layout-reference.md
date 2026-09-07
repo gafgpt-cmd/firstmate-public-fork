@@ -33,7 +33,7 @@ crew-harness          crewmate harness override; absent/"default" = same as firs
 crew-dispatch.json    optional per-task harness/model/effort profiles; human-editable NL rules (§4). Inherited by secondmates
 secondmate-harness    harness PRIMARY uses to launch SECONDMATEs: "<harness> [<model>] [<effort>]" (§4); absent/"default" -> crew-harness -> firstmate own. NOT inherited (secondmates don't spawn secondmates)
 backlog-backend       absent/"tasks-axi" = default; "manual" = force hand-editing (§10). Inherited
-backend               runtime session-provider backend for new tasks; absent = auto-detect -> tmux. tmux = verified reference (docs/tmux-backend.md); herdr/zellij/orca/cmux experimental (respective docs); herdr+cmux auto-detectable, zellij+orca always explicit, codex-app NOT accepted (docs/codex-app-backend.md). Inherited per secondmate-provisioning
+backend               runtime session-provider backend for new tasks; absent = auto-detect -> tmux. tmux = verified reference (docs/tmux-backend.md); herdr has own required CI lane (docs/herdr-backend.md); zellij/orca/cmux experimental, no dedicated real-backend CI lane (respective docs); herdr+cmux auto-detectable, zellij+orca always explicit, codex-app NOT accepted (docs/codex-app-backend.md). Inherited per secondmate-provisioning
 calm                  Pi Calm presentation preference; NOT inherited; docs/configuration.md "Pi Calm preference"
 supervision-branch-model supervision-branch-effort  Pi supervision-branch model + reasoning-effort pins written by /supervision-model; independently settable; NOT inherited; docs/configuration.md "Pi supervision branch model and effort"
 stow-pass-horizon     optional presence flag opting home into /stow default-off pass-count decay horizon; NOT inherited; docs/configuration.md "Stow pass horizon"
@@ -91,6 +91,7 @@ pending-replies/   parent-owned secondmate pending-reply records (correlation id
 procevent/         registered process-to-event sources, one private record per canonical source id; written only by bin/fm-procevent.sh; presence alone keeps supervision required (§13)
 procevent-inbox/   private captured results + durable handled-ack markers; source output lives here, never in event line
 decision-bindings/ private records marking captured-answer source feeding keyed-answer intake, legacy origin on pre-collapse records; written only by bin/fm-captain-hold.sh bind; dropped by unbind + source retirement (§13; docs/captain-hold-lifecycle.md)
+reconcile-requests/ private open obligations to re-check a captain call whose board selection was `reconcile`; written only by bin/fm-captain-hold.sh; retired by its verify-then-decide outcomes or a normal answer that settles the call (§13; docs/captain-hold-lifecycle.md)
 when/              private condition->action watch specs, trust bindings, single-fire markers; written only by bin/fm-procevent-when.sh (§13 trigger)
 inbox/             captain notes captured out of band by bin/fm-inbox.sh, incl voice handover's queued requests; each note appends one `check` wake, stays pending until acked with `bin/fm-inbox.sh drain --ack <id>` (moves to inbox/handled/); docs/voice-relay.md
 x-inbox/           generated Relay pending mention payloads; fmx-respond drains (§14)
