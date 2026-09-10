@@ -37,6 +37,15 @@ ln -sf "$(command -v git)" "$TOOLS/git"
 ln -sf "$(command -v jq)" "$TOOLS/jq"
 BASE_PATH="$TOOLS:/usr/bin:/bin:/usr/sbin:/sbin"
 
+# Keep the no-herdr fixture independent of tools installed on the runner.
+command() {
+  if [ "${1:-}" = -v ] && [ "${2:-}" = herdr ] && [ -n "${FM_FAKE_HERDR_BIN:-}" ] && [ ! -x "$FM_FAKE_HERDR_BIN" ]; then
+    return 1
+  fi
+  builtin command "$@"
+}
+export -f command
+
 # Real socket-owner holders for the Darwin birth check: jq blocked on a fifo
 # this test keeps open, with exactly the marker environment each birth needs.
 JQ=$(command -v jq)
@@ -886,4 +895,3 @@ assert_contains "$DOCTOR_OUT" 'check entrypoint-link=human:' "an operator-owned 
   || fail "--fix overwrote a file it did not create"
 unset FM_ROOT_OVERRIDE
 pass "the entrypoint symlink is recreated when absent and never overwritten when operator-owned"
-
