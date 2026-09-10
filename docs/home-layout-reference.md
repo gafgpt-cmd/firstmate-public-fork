@@ -21,7 +21,7 @@ bin/                 helper scripts, committed; read each header before first us
 ## Captain-private, gitignored
 
 ```
-.env                 optional Relay pairing token; presence-gates §14
+.env                 optional Relay pairing token (presence-gates §14) + mail-plane credentials (schema: docs/configuration.md "Mail plane")
 projects/            cloned repos; read-only except hard-rule-1 concrete captain-approved op
 .no-mistakes/        local validation state + evidence
 ```
@@ -32,8 +32,8 @@ projects/            cloned repos; read-only except hard-rule-1 concrete captain
 crew-harness          crewmate harness override; absent/"default" = same as firstmate. Inherited literal: concrete primary adapter also controls secondmate home crewmates (§4)
 crew-dispatch.json    optional per-task harness/model/effort profiles; human-editable NL rules (§4). Inherited by secondmates
 secondmate-harness    harness PRIMARY uses to launch SECONDMATEs: "<harness> [<model>] [<effort>]" (§4); absent/"default" -> crew-harness -> firstmate own. NOT inherited (secondmates don't spawn secondmates)
-backlog-backend       absent/"tasks-axi" = default; "manual" = force hand-editing (§10). Inherited
-backend               runtime session-provider backend for new tasks; absent = auto-detect -> tmux. tmux = verified reference (docs/tmux-backend.md); herdr/zellij/orca/cmux experimental (respective docs); herdr+cmux auto-detectable, zellij+orca always explicit, codex-app NOT accepted (docs/codex-app-backend.md). Inherited per secondmate-provisioning
+backlog-backend       absent/"tasks-axi" = the configured tasks-axi backend; "manual" = force hand-editing (§10). Inherited
+backend               runtime session-provider backend for new tasks; absent = auto-detect -> tmux. tmux = verified reference (docs/tmux-backend.md); herdr has its own required CI lane (docs/herdr-backend.md); zellij/orca/cmux remain experimental, NO dedicated real-backend CI lane (respective docs); herdr+cmux auto-detectable, zellij+orca always explicit, codex-app NOT accepted (docs/codex-app-backend.md). Inherited per secondmate-provisioning
 calm                  Pi Calm presentation preference; NOT inherited; docs/configuration.md "Pi Calm preference"
 supervision-branch-model supervision-branch-effort  Pi supervision-branch model + reasoning-effort pins written by /supervision-model; independently settable; NOT inherited; docs/configuration.md "Pi supervision branch model and effort"
 stow-pass-horizon     optional presence flag opting home into /stow default-off pass-count decay horizon; NOT inherited; docs/configuration.md "Stow pass horizon"
@@ -65,6 +65,7 @@ secondmates.md     local+remote secondmate routing table; firstmate-private; mai
 ```
 <id>.status        crewmate-appended "<state>: <note>" wake-event lines, NOT current-state truth
 <id>.turn-ended    touched by turn-end hooks
+<id>.progress      touched for observed native-harness activity inside one Pi turn; bin/fm-busy-event.sh owns generation binding; bin/fm-watch.sh reads it beside turn-ended for the busy-age bound ONLY, never as a completed turn
 <id>.grok-turnend-token   firstmate-owned grok hook registry token; removed by teardown
 <id>.kimi-turnend-token   firstmate-owned Kimi hook registry token; removed by teardown
 <id>.gemini-settings.json  firstmate-owned per-task Gemini settings carrying busy-state + turn-end hooks, reached via GEMINI_CLI_SYSTEM_SETTINGS_PATH so nothing is written into the project's own .gemini/; removed by teardown
@@ -87,10 +88,13 @@ branch-session/ .branch-session .branch-mirror-cursor  branch's per-main-session
 .lease-<task>      per-task supervision lease naming which actor (main/branch) may change that task; bin/fm-lease-lib.sh owns contract guarded scripts enforce
 x-watch.check.sh   generated Relay poll shim; present only when opted in (§14)
 tool-updates.check.sh  generated watched-tool update poll shim + its .check-trust binding; present only after bin/fm-tool-update-check.sh arm; its report record .tool-updates keeps one pending update from being reported on every poll
+mail.check.sh      generated received-mail poll shim + its .check-trust binding; present only after bin/fm-mail-check.sh arm; report record .mail-check (mail schema: docs/configuration.md "Mail plane")
+.mail-seen .mail-woken .mail-retry .mail-retry-pos .mail-turn .mail-seen.lock  mail-plane poll cursor, emission journal, transient-fetch retry set, retry-scan position, contended-slot turn flag, overlapping-poll lock; written ONLY by bin/fm-mail.sh (mail schema: docs/configuration.md "Mail plane")
 pending-replies/   parent-owned secondmate pending-reply records (correlation id, delivery vs reply, recovery, escalation); fm-pending-reply-lib.sh
 procevent/         registered process-to-event sources, one private record per canonical source id; written only by bin/fm-procevent.sh; presence alone keeps supervision required (§13)
 procevent-inbox/   private captured results + durable handled-ack markers; source output lives here, never in event line
 decision-bindings/ private records marking captured-answer source feeding keyed-answer intake, legacy origin on pre-collapse records; written only by bin/fm-captain-hold.sh bind; dropped by unbind + source retirement (§13; docs/captain-hold-lifecycle.md)
+reconcile-requests/ private open obligations to re-check a captain call whose board selection was `reconcile`; written only by bin/fm-captain-hold.sh; retired by its verify-then-decide outcomes or a normal answer settling the call (§13; docs/captain-hold-lifecycle.md)
 when/              private condition->action watch specs, trust bindings, single-fire markers; written only by bin/fm-procevent-when.sh (§13 trigger)
 inbox/             captain notes captured out of band by bin/fm-inbox.sh, incl voice handover's queued requests; each note appends one `check` wake, stays pending until acked with `bin/fm-inbox.sh drain --ack <id>` (moves to inbox/handled/); docs/voice-relay.md
 x-inbox/           generated Relay pending mention payloads; fmx-respond drains (§14)
@@ -103,7 +107,9 @@ x-poll.error x-poll.claim-error  generated Relay + offer-claim diagnostic dedupe
 .watcher-down      private generation-bound recovery state; couples watcher downtime + durable wake presentation + post-handling ack; never touch
 .<id>.open-decisions-cursor  per-task byte cursor + folded open-decision set bounding OPEN DECISIONS scan cost to new status appends; written only by fm-classify-lib.sh status_open_decisions_incremental; removed by teardown; safe to delete (forces one full re-fold)
 .status-presentation-cursor .status-presentation-lock  fleet-wide per-task status identity + independent annotation and outcome-backstop byte offsets, with serialization lock preventing already-presented lines replaying while preserving delayed signal annotations; owned by fm-classify-lib.sh; row retired by teardown
-.afk               durable away-mode flag; present = sub-supervisor may inject escalations (set by /afk, cleared on user return)
+.afk-contract      the away-posture record: captain's verbatim away words, expected return, reach profile, spend cap, structured mandate clauses; written ONLY by bin/fm-afk-contract.sh after the captain confirms the read-back; archived under afk-contracts/ at return; its presence IS the away posture in every harness
+afk-contracts/     archived away-posture records: one final record per away window keyed by entry time, plus any superseded mandates from that window
+.afk               durable away-mode DAEMON flag on the harnesses that still launch the daemon (never on Pi); present = sub-supervisor may inject escalations (set by daemon entry, cleared on user return)
 .watch.lock .wake-queue.lock  watcher singleton + queue serialization locks
 .claude-autoarm.lock .claude-autoarm-epoch .claude-autoarm-failure-notified .claude-autoarm-failure-alarmed .turnend-claude-blocks .turnend-claude-blocks.lock   Claude Stop auto-arm single-flight/epoch/failure-episode/attended-alarm/guard-budget/budget-lock; never touch
 .cursor-park-owner .cursor-park-owner.lock .turnend-cursor-blocks   Cursor stop-hook owner + publication/commit lock + bounded repair-nag budget; never touch
